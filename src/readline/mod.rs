@@ -1,8 +1,8 @@
-use rustyline::Editor;
 use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
-use super::actions::Context;
 use super::actions::parse_call_args;
+use super::actions::Context;
 
 //mod setup;
 
@@ -25,11 +25,11 @@ pub fn repl(history: Option<&str>) {
                 let words: Vec<_> = line.splitn(2, char::is_whitespace).collect();
                 let command = words.split_first();
                 if command.is_none() {
-                    continue
+                    continue;
                 }
                 let command = command.unwrap();
                 if command.0.is_empty() {
-                    continue
+                    continue;
                 }
                 match command {
                     (&"pb", _) => progress_bars(),
@@ -39,21 +39,20 @@ pub fn repl(history: Option<&str>) {
                             Ok(_) => println!("Ok."),
                             Err(e) => println!("Failed: {:?}", e),
                         }
-                    },
+                    }
                     (&"host", _) => println!("usage: host <3scale-system-host>"),
                     (&"token", args) if args.is_empty() => {
                         let token = ctx.straitjacket().token().unwrap_or("(not set)");
                         println!("{}", token);
-                    },
+                    }
                     (&"token", args) => {
                         let token = args.first().unwrap().to_string();
                         ctx.set_token(token)
-                            .map_or_else(|e| println!("Failed: {:?}", e),
-                                               |_| println!("Ok."));
-                    },
-                    (&"global", _) => ctx.set_host(None)
-                        .map_or_else(|e| println!("Failed: {:?}", e),
-                                           |_| println!("Ok.")),
+                            .map_or_else(|e| println!("Failed: {:?}", e), |_| println!("Ok."));
+                    }
+                    (&"global", _) => ctx
+                        .set_host(None)
+                        .map_or_else(|e| println!("Failed: {:?}", e), |_| println!("Ok.")),
                     (&"response", _) => println!("{:?}", ctx.straitjacket().response()),
                     (&"body", _) => {
                         // TODO FIXME this consumes the response or the body, so must find a way
@@ -69,62 +68,100 @@ pub fn repl(history: Option<&str>) {
                                 if let Err(e) = out.flush() {
                                     println!("Failed to flush: {:?}", e);
                                 }
-                            },
+                            }
                             Err(e) => println!("Failed: {:?}", e),
                         }
-                    },
+                    }
                     (&"json", _) => {
                         let body = ctx.straitjacket_mut().fetch_body();
                         match body {
-                            Ok(body) => {
-                                match serde_json::from_slice::<serde_json::Value>(body) {
-                                    Ok(v) => {
-                                        serde_json::to_writer_pretty(std::io::stdout(), &v)
-                                            .unwrap_or_else(|e| println!("Failed: {:?}", e));
-                                    },
-                                    Err(e) => println!("Failed: {:?}", e),
+                            Ok(body) => match serde_json::from_slice::<serde_json::Value>(body) {
+                                Ok(v) => {
+                                    serde_json::to_writer_pretty(std::io::stdout(), &v)
+                                        .unwrap_or_else(|e| println!("Failed: {:?}", e));
                                 }
+                                Err(e) => println!("Failed: {:?}", e),
                             },
                             Err(e) => println!("Failed: {:?}", e),
                         }
-                    },
+                    }
                     (&"call", args) => {
                         if ctx.straitjacket().host_url().is_none() {
                             println!("Failed: set a host and token first");
-                            continue
+                            continue;
                         }
                         let parsed_call = parse_call_args(args);
                         if let Err(e) = parsed_call {
                             println!("Failed: {:?}", e);
-                            continue
+                            continue;
                         }
                         let (method, path, query_string, body) = parsed_call.unwrap();
-                        let response = ctx.straitjacket().client()
-                            .send(method, path, query_string, body);
+                        let response =
+                            ctx.straitjacket()
+                                .client()
+                                .send(method, path, query_string, body);
                         match response {
                             Ok(response) => {
                                 let status = response.status();
                                 ctx.straitjacket_mut().set_response(response);
                                 println!("Ok, response status {}.", status);
-                            },
+                            }
                             Err(e) => println!("Failed: {:?}", e),
                         }
-                    },
+                    }
+                    (&"services", _) => {
+                        if ctx.straitjacket().host_url().is_none() {
+                            println!("Failed: set a host and token first");
+                            continue;
+                        }
+                        let ep = &straitjacket::api::v0::service::LIST;
+                        let response = ctx.straitjacket().client().send_endpoint(
+                            ep,
+                            &[],
+                            None::<&str>,
+                            None::<&str>,
+                        );
+                        match response {
+                            Ok(response) => {
+                                let status = response.status();
+                                let sj_mut = ctx.straitjacket_mut();
+                                sj_mut.set_response(response);
+                                println!("Ok, response status {}.", status);
+                                match sj_mut.fetch_body_as_str() {
+                                    Err(e) => {
+                                        println!("Failed to get back a response body: {:?}", e)
+                                    }
+                                    Ok(t) => match ep.parse_str(t) {
+                                        Err(e) => println!("Failed to parse body: {:?}", e),
+                                        Ok(services) => {
+                                            use straitjacket::api::v0::service::Service;
+                                            let services: Vec<Service> = services.into();
+                                            sj_mut.set_services(services);
+                                            for svc in ctx.straitjacket().services().unwrap() {
+                                                println!("Svc: {}", svc);
+                                            }
+                                        }
+                                    },
+                                }
+                            }
+                            Err(e) => println!("Failed: {:?}", e),
+                        }
+                    }
                     (thing, _) => println!("Unknown command: {}", thing),
                 }
-            },
+            }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL+C");
-                break
-            },
+                break;
+            }
             Err(ReadlineError::Eof) => {
                 println!("CTRL+D");
-                break
-            },
+                break;
+            }
             Err(err) => {
                 println!("Error: {:#?}", err);
-                break
-            },
+                break;
+            }
         }
     }
 
