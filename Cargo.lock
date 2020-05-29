@@ -1186,6 +1186,7 @@ checksum = "c7cb5678e1615754284ec264d9bb5b4c27d2018577fd90ac0ceb578591ed5ee4"
 [[package]]
 name = "straitjacket"
 version = "0.1.0"
+source = "git+https://github.com/3scale-rs/straitjacket#7ebcdaa25ae96d32468af4f609052bb9ce7f2318"
 dependencies = [
  "http",
  "lazy_static",
@@ -1199,7 +1200,7 @@ dependencies = [
 [[package]]
 name = "straitjacket_macro"
 version = "0.1.0"
-source = "git+https://github.com/3scale-rs/straitjacket_macro?rev=5469b195b4ec76a8f6c4b0a14d98f2d49577ac69#5469b195b4ec76a8f6c4b0a14d98f2d49577ac69"
+source = "git+https://github.com/3scale-rs/straitjacket_macro#590161cb16c45488bb58f8c9c66764e197e58c50"
 dependencies = [
  "Inflector",
  "proc-macro2",
