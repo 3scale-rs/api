@@ -5,6 +5,7 @@ pub struct StraitJacket {
     client: straitjacket::client::Client,
     response: Option<straitjacket::client::Response>,
     body: Option<Vec<u8>>,
+    services: Option<Vec<straitjacket::api::v0::service::Service>>,
 }
 
 impl StraitJacket {
@@ -13,6 +14,7 @@ impl StraitJacket {
             client: straitjacket::client::Client::new(timeout)?,
             response: None,
             body: None,
+            services: None,
         })
     }
 
@@ -24,7 +26,10 @@ impl StraitJacket {
         &self.client
     }
 
-    pub fn set_host<'h, H: Into<Option<&'h str>>>(&mut self, host: H) -> Result<(), Box<dyn Error>> {
+    pub fn set_host<'h, H: Into<Option<&'h str>>>(
+        &mut self,
+        host: H,
+    ) -> Result<(), Box<dyn Error>> {
         self.client_mut().set_host(host)?;
         Ok(())
     }
@@ -48,6 +53,14 @@ impl StraitJacket {
         self.response = Some(response);
     }
 
+    pub fn set_services(&mut self, svcs: Vec<straitjacket::api::v0::service::Service>) {
+        self.services = Some(svcs);
+    }
+
+    pub fn services(&self) -> Option<&Vec<straitjacket::api::v0::service::Service>> {
+        self.services.as_ref()
+    }
+
     pub fn body(&self) -> Option<&Vec<u8>> {
         self.body.as_ref()
     }
@@ -61,24 +74,27 @@ impl StraitJacket {
             Some(r) => {
                 use std::convert::TryFrom;
                 //let mut v = Vec::new();
-                let mut v = if let Some(capacity) = r.content_length()
-                    .and_then(|len| {
-                        // do not just trust a header, preallocate reasonably
-                        let maxlen = std::cmp::min(len, u16::MAX as u64);
-                        usize::try_from(maxlen).ok()
-                    }) {
-                        Vec::with_capacity(capacity)
-                    } else {
-                        Vec::new()
-                    };
+                let mut v = if let Some(capacity) = r.content_length().and_then(|len| {
+                    // do not just trust a header, preallocate reasonably
+                    let maxlen = std::cmp::min(len, u16::MAX as u64);
+                    usize::try_from(maxlen).ok()
+                }) {
+                    Vec::with_capacity(capacity)
+                } else {
+                    Vec::new()
+                };
 
                 r.copy_to(&mut v)?;
                 self.body = Some(v);
-            },
+            }
             None => return Err(From::from("no response")),
         };
 
         Ok(self.body.as_ref().unwrap())
+    }
+
+    pub fn fetch_body_as_str(&mut self) -> Result<&str, Box<dyn Error>> {
+        std::str::from_utf8(self.fetch_body()?).map_err(|e| From::from(e))
     }
 
     pub fn response(&self) -> Option<&straitjacket::client::Response> {
