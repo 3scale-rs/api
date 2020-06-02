@@ -2,6 +2,7 @@ use std::error::Error;
 
 mod context;
 mod straitjacket;
+mod root;
 
 use ::straitjacket::client::Method;
 
