@@ -2,7 +2,9 @@ use std::error::Error;
 
 mod context;
 mod straitjacket;
-mod root;
+pub mod root;
+mod host;
+mod service;
 
 use ::straitjacket::client::Method;
 
