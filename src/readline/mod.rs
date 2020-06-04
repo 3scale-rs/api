@@ -28,7 +28,7 @@ fn handle_line(mut ctx: Box<dyn ReadLineContext>, line: String) -> Box<dyn ReadL
     if command.is_none() {
         return ctx;
     }
-    let (command, args)= command.unwrap();
+    let (command, args) = command.unwrap();
     if command.is_empty() {
         return ctx;
     }
@@ -47,7 +47,7 @@ fn handle_line(mut ctx: Box<dyn ReadLineContext>, line: String) -> Box<dyn ReadL
         CommandAction::NotFound => match (*command, args) {
             //("cd", ["..", ..]) => ctx = ctx.parent_mut(),
             _ => println!("Not found."),
-        }
+        },
     };
 
     return result.unwrap_or(ctx);
@@ -63,8 +63,10 @@ pub fn repl(history: Option<&str>) {
     }
 
     //let mut ctx = Context::new().expect("can't create context");
-    let mut rootctx = Box::new(super::actions::root::RootContext::new());
+    let mut rootctx = Box::new(super::actions::root::Root::new());
     let mut ctx: Box<dyn ReadLineContext> = rootctx;
+
+    ReadLineContext::command(&mut rootctx, "sx", &[]);
 
     loop {
         let mut prompt = ctx.prompt().to_string();
