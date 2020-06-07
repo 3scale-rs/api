@@ -6,8 +6,31 @@ use rustyline::Editor;
 use super::actions::parse_call_args;
 use super::actions::Context;
 
-pub enum CommandAction<'s, T> {
-    SetContext(Cow<'s, str>, T),
+//#[derive(Clone)]
+pub struct CommandAction<'s> {
+    action: Action<'s>,
+}
+
+impl<'s> CommandAction<'s> {
+    //pub fn new(action: Action<'s>, context: &'s dyn ReadLineContext) -> Self {
+    pub fn new(action: Action<'s>) -> Self {
+        Self {
+            action,
+            //context,
+        }
+    }
+
+    //pub fn context(self) -> &'s dyn ReadLineContext {
+    //    self.context
+    //}
+
+    pub fn action(&self) -> &Action<'s> {
+        &self.action
+    }
+}
+
+pub enum Action<'s> {
+    SetContext(Cow<'s, str>, &'s dyn ReadLineContext<'s>),
     Failed(Cow<'s, str>),
     SideEffect(Cow<'s, str>),
     NoProgress(Cow<'s, str>),
@@ -15,42 +38,60 @@ pub enum CommandAction<'s, T> {
     NotFound,
 }
 
-pub trait ReadLineContext {
-    fn prompt(&self) -> &str;
-    fn command(&mut self, cmd: &str, args: &[&str]) -> CommandAction<'_, Box<dyn ReadLineContext>>;
-    fn set_parent(&mut self, parent: &dyn ReadLineContext);
-    fn parent_mut(&self) -> &mut dyn ReadLineContext;
+impl<'s> Action<'s> {
+    pub fn message(&self) -> &str {
+        match self {
+            Self::SetContext(msg, _) => msg,
+            Self::Failed(msg) => msg,
+            Self::SideEffect(msg) => msg,
+            Self::NoProgress(msg) => msg,
+            Self::Usage(msg) => msg,
+            Self::NotFound => "not found",
+        }
+    }
+
+    pub fn context(&self) -> Option<&'s dyn ReadLineContext> {
+        if let Self::SetContext(_, ctx) = self {
+            Some(*ctx)
+        } else {
+            None
+        }
+    }
 }
 
-fn handle_line(mut ctx: Box<dyn ReadLineContext>, line: String) -> Box<dyn ReadLineContext> {
-    let words: Vec<_> = line.splitn(2, char::is_whitespace).collect();
-    let command = words.split_first();
-    if command.is_none() {
-        return ctx;
-    }
-    let (command, args) = command.unwrap();
-    if command.is_empty() {
-        return ctx;
+pub trait ReadLineContext<'s> {
+    fn prompt(&self) -> &str;
+    fn command(&'s mut self, cmd: &str, args: &[&str]) -> CommandAction<'s>;
+}
+
+fn parse_line(line: &str) -> Option<Vec<&str>> {
+    let words: Vec<_> = line.split(char::is_whitespace).collect();
+    if words[0].is_empty() {
+        return None;
     }
 
-    let mut result = None;
+    Some(words)
+}
 
-    match ctx.command(command, args) {
-        CommandAction::SetContext(msg, new_ctx) => {
+fn handle_line<'s>(ctx: &'s mut dyn ReadLineContext<'s>, command: &str, args: &[&str]) -> &'s dyn ReadLineContext<'s> {
+    let ca = ctx.command(command, args);
+    let ca_action = ca.action();
+    match ca_action {
+        Action::SetContext(msg, newctx) => {
             println!("New context: {}", msg);
-            result = Some(new_ctx);
         }
-        CommandAction::Failed(msg) => println!("Failed: {}", msg),
-        CommandAction::SideEffect(msg) => println!("Side effect: {}", msg),
-        CommandAction::NoProgress(msg) => println!("No progress: {}", msg),
-        CommandAction::Usage(msg) => println!("Usage: {}", msg),
-        CommandAction::NotFound => match (*command, args) {
+        Action::Failed(msg) => println!("Failed: {}", msg),
+        Action::SideEffect(msg) => println!("Side effect: {}", msg),
+        Action::NoProgress(msg) => println!("No progress: {}", msg),
+        Action::Usage(msg) => println!("Usage: {}", msg),
+        Action::NotFound => match (*command, args) {
             //("cd", ["..", ..]) => ctx = ctx.parent_mut(),
             _ => println!("Not found."),
         },
     };
 
-    return result.unwrap_or(ctx);
+    let ss = ca_action.context().unwrap_or(ctx);
+    ss
 }
 
 pub fn repl(history: Option<&str>) {
@@ -62,24 +103,28 @@ pub fn repl(history: Option<&str>) {
         }
     }
 
+    let mut root = super::actions::root::Root::new();
     //let mut ctx = Context::new().expect("can't create context");
-    let mut rootctx = Box::new(super::actions::root::Root::new());
-    let mut ctx: Box<dyn ReadLineContext> = rootctx;
+    let rootctx = super::actions::root::RootCtx::new(&mut root);
+    let mut ctx: &dyn ReadLineContext = &rootctx;
+    //let mut ctx = &mut rootctx;
 
-    ReadLineContext::command(&mut rootctx, "sx", &[]);
+    ctx.command("dx", &[]);
 
     loop {
         let mut prompt = ctx.prompt().to_string();
         prompt.push_str(">>");
         let readline = rl.readline(prompt.as_str());
-        ctx = match readline {
+        match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                handle_line(ctx, line)
+                if let Some(words) = parse_line(line.as_str()) {
+                    let cc = handle_line(ctx, words[0], &words[1..]);
+                }
             }
             Err(ReadlineError::Interrupted) => {
                 println!("Interrupted. Please close stdin (typically C-d) to exit.");
-                ctx
+                break;
             }
             Err(ReadlineError::Eof) => {
                 break;

@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::readline::{CommandAction, ReadLineContext};
+use crate::readline::{CommandAction, Action, ReadLineContext};
 use super::service::Service;
 
 #[derive(Clone, Debug)]
@@ -61,21 +61,29 @@ impl Host {
     }
 }
 
-impl ReadLineContext for Host {
+pub struct HostCtx<'h> {
+    host: &'h mut Host,
+    //parent: &'ctx dyn crate::readline::ReadLineContext,
+}
+
+impl<'h> HostCtx<'h> {
+    pub fn new(host: &'h mut Host) -> Self {
+        Self {
+            host,
+        }
+    }
+}
+
+impl<'s> ReadLineContext<'s> for HostCtx<'s> {
     fn prompt(&self) -> &str {
-        self.url_str()
+        self.host.url_str()
     }
 
-    fn command(&mut self, cmd: &str, args: &[&str]) -> CommandAction<'_, Box<dyn ReadLineContext>> {
-        CommandAction::NotFound
-        //todo!()
-    }
-
-    fn set_parent(&mut self, parent: &dyn ReadLineContext) {
-        todo!()
-    }
-
-    fn parent_mut(&self) -> &mut dyn ReadLineContext {
-        todo!()
+    fn command(&'s mut self, cmd: &str, args: &[&str]) -> CommandAction<'s> {
+        if true {
+            CommandAction::new(Action::NotFound)
+        } else {
+            CommandAction::new(Action::SetContext("parent".into(), self))
+        }
     }
 }
