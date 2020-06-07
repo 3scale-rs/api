@@ -1,4 +1,4 @@
-use crate::readline::{CommandAction, ReadLineContext};
+use crate::readline::ReadLineContext;
 
 #[derive(Clone, Debug)]
 pub struct Limit {

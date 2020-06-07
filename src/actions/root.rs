@@ -1,6 +1,6 @@
 use std::error::Error;
 use super::host::{Host, HostCtx};
-use crate::readline::{ReadLineContext, CommandAction, Action};
+use crate::readline::{ReadLineContext, NextContext};
 
 pub struct Root {
     hosts: Vec<Host>,
@@ -20,7 +20,7 @@ impl Root {
               .and_then(|idx| self.hosts.get(idx))
     }
 
-    fn host_search(&self, host_url: &str) -> Result<usize, usize> {
+    pub fn host_search(&self, host_url: &str) -> Result<usize, usize> {
         self.hosts.binary_search_by(|h| h.url_str().cmp(host_url))
     }
 
@@ -68,36 +68,33 @@ impl<'r> RootCtx<'r> {
     }
 }
 
-impl<'s> ReadLineContext<'s> for RootCtx<'s> {
-    fn command(&'s mut self, cmd: &str, args: &[&str]) -> CommandAction<'s> {
-        use Action::*;
-
+impl<'a> ReadLineContext for RootCtx<'a> {
+    fn command(&self, cmd: &str, args: &[&str]) -> NextContext {
         match (cmd, args) {
             ("host", &[host_url]) => {
-                let host = self.root.get_host(host_url);
+                let host = self.root.host_search(host_url);
                 match host {
-                    None => CommandAction::new(
-                        Action::Failed("Host not found. If you want to add it, specify a token.".into())),
-                    Some(h) => CommandAction::new(
-                        Action::SetContext("Ok, found host.".into(), self)),
+                    Ok(idx) => NextContext::New(Box::new(HostCtx::new(idx))),
+                    _ => NextContext::Unchanged,
+                        //Action::Failed("Host not found. If you want to add it, specify a token.".into())),
                 }
             }
             ("host", &[host_url, token]) => {
                 match self.root.add_host_by_url(host_url, token) {
                     Ok((_, prev_token)) => match prev_token {
-                        Some(token) => CommandAction::new(
-                            Action::SideEffect(format!("Replaced {}'s token {}.", host_url, token).into())),
-                        None => CommandAction::new(
-                            Action::SideEffect(format!("Host added: {}", host_url).into())),
+                        Some(token) => NextContext::Unchanged,
+                            //Action::SideEffect(format!("Replaced {}'s token {}.", host_url, token).into())),
+                        None => NextContext::Unchanged,
+                            //Action::SideEffect(format!("Host added: {}", host_url).into())),
                     },
-                    Err(e) => CommandAction::new(
-                        Action::Failed(format!("{:?}", e).into())),
+                    Err(e) => NextContext::Unchanged,
+                        //Action::Failed(format!("{:?}", e).into())),
                 }
             },
-            ("host", _) => CommandAction::new(
-                Action::Usage("usage: host <3scale-system-host> [<token>]".into())),
-            (_, _) => CommandAction::new(
-                Action::NotFound),
+            ("host", _) => NextContext::Unchanged,
+                //Action::Usage("usage: host <3scale-system-host> [<token>]".into())),
+            (_, _) => NextContext::Parent,
+                //Action::NotFound),
         }
     }
 

@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::time::Duration;
 
-use crate::readline::{ReadLineContext, CommandAction};
+use crate::readline::ReadLineContext;
 use super::host::Host;
 
 pub struct StraitJacket {
