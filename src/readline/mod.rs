@@ -15,7 +15,7 @@ pub enum NextContext {
 pub trait ReadLineContext {
     fn prompt(&self) -> &str;
     //fn command(&self, cmd: &str, args: &[&str]) -> Option<Box<dyn ReadLineContext>>;
-    fn command(&self, cmd: &str, args: &[&str]) -> NextContext;
+    fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext;
 }
 
 fn parse_line(line: &str) -> Option<Vec<&str>> {
@@ -27,7 +27,11 @@ fn parse_line(line: &str) -> Option<Vec<&str>> {
     Some(words)
 }
 
-fn handle_line<'a,'b>(ctx: &'a mut dyn ReadLineContext, command: &str, args: &[&str]) -> Option<&'b mut dyn ReadLineContext> {
+fn handle_line<'a, 'b>(
+    ctx: &'a mut dyn ReadLineContext,
+    command: &str,
+    args: &[&str],
+) -> Option<&'b mut dyn ReadLineContext> {
     let ca = ctx.command(command, args);
     match ca {
         NextContext::New(b) => Some(Box::leak(b)),
@@ -45,9 +49,9 @@ pub fn repl(history: Option<&str>) {
     }
 
     let mut root = super::actions::root::Root::new();
-    let mut rootctx = super::actions::root::RootCtx::new(&mut root);
-    let mut ctx: &mut dyn ReadLineContext = &mut rootctx;
-    //let mut ctx = &mut rootctx;
+    let rootctx = super::actions::root::RootCtx::new(&mut root);
+    //let mut ctx: &mut dyn ReadLineContext = &mut rootctx;
+    let mut ctx: Box<dyn ReadLineContext> = Box::new(rootctx);
 
     //ctx.command("dx", &[]);
 
@@ -55,7 +59,7 @@ pub fn repl(history: Option<&str>) {
         let mut prompt = ctx.prompt().to_string();
         prompt.push_str(">>");
         let readline = rl.readline(prompt.as_str());
-        match readline {
+        let next = match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if let Some(words) = parse_line(line.as_str()) {
@@ -63,11 +67,12 @@ pub fn repl(history: Option<&str>) {
 
                     let (command, args) = words.split_first().unwrap();
                     let nc = ctx.command(command, args);
-                    let lala = match nc {
-                        NextContext::New(mut rlc) => rlc.as_mut(),
-                        _ => ctx,
-                    };
-                    ctx = lala;
+                    match nc {
+                        NextContext::New(rlc) => Some(rlc),
+                        _ => None,
+                    }
+                } else {
+                    None
                 }
             }
             Err(ReadlineError::Interrupted) => {
@@ -81,7 +86,8 @@ pub fn repl(history: Option<&str>) {
                 println!("Unhandled error: {:#?}", err);
                 break;
             }
-        }
+        };
+        ctx = next.map_or(ctx, |b| b);
     }
 
     if let Some(file) = history {

@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use crate::readline::{NextContext, ReadLineContext};
 use super::service::Service;
+use crate::readline::{NextContext, ReadLineContext};
 
 #[derive(Clone, Debug)]
 pub struct Host {
@@ -33,7 +33,10 @@ impl Ord for Host {
 }
 
 impl Host {
-    pub fn new(host_url: impl Into<String>, token: impl Into<String>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(
+        host_url: impl Into<String>,
+        token: impl Into<String>,
+    ) -> Result<Self, Box<dyn Error>> {
         let url_s = host_url.into();
         let url = url_s.parse()?;
         Ok(Self {
@@ -68,9 +71,7 @@ pub struct HostCtx {
 
 impl HostCtx {
     pub fn new(host: usize) -> Self {
-        Self {
-            host,
-        }
+        Self { host }
     }
 }
 
@@ -81,7 +82,7 @@ impl ReadLineContext for Dummy {
         "(dummy)"
     }
 
-    fn command(&self, cmd: &str, args: &[&str]) -> NextContext {
+    fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext {
         NextContext::Unchanged
     }
 }
@@ -92,7 +93,7 @@ impl ReadLineContext for HostCtx {
         "host"
     }
 
-    fn command(&self, cmd: &str, args: &[&str]) -> NextContext {
+    fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext {
         NextContext::Parent
     }
 }

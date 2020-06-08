@@ -1,6 +1,6 @@
-use std::error::Error;
 use super::host::{Host, HostCtx};
-use crate::readline::{ReadLineContext, NextContext};
+use crate::readline::{NextContext, ReadLineContext};
+use std::error::Error;
 
 pub struct Root {
     hosts: Vec<Host>,
@@ -16,8 +16,10 @@ impl Root {
     }
 
     pub fn get_host(&self, host_url: &str) -> Option<&Host> {
-        self.hosts.binary_search_by(|h| h.url_str().cmp(host_url)).ok()
-              .and_then(|idx| self.hosts.get(idx))
+        self.hosts
+            .binary_search_by(|h| h.url_str().cmp(host_url))
+            .ok()
+            .and_then(|idx| self.hosts.get(idx))
     }
 
     pub fn host_search(&self, host_url: &str) -> Result<usize, usize> {
@@ -42,16 +44,18 @@ impl Root {
     //    h
     //}
 
-    pub fn add_host_by_url(&mut self, host_url: &str, token: &str) -> Result<(usize, Option<String>), Box<dyn Error>> {
+    pub fn add_host_by_url(
+        &mut self,
+        host_url: &str,
+        token: &str,
+    ) -> Result<(usize, Option<String>), Box<dyn Error>> {
         Ok(match self.host_search(host_url) {
-            Ok(idx) => {
-                (idx, Some(self.hosts.get_mut(idx).unwrap().set_token(token)))
-            },
+            Ok(idx) => (idx, Some(self.hosts.get_mut(idx).unwrap().set_token(token))),
             Err(idx) => {
                 let h = Host::new(host_url, token)?;
                 self.hosts.insert(idx, h);
                 (idx, None)
-            },
+            }
         })
     }
 }
@@ -62,39 +66,37 @@ pub struct RootCtx<'r> {
 
 impl<'r> RootCtx<'r> {
     pub fn new(root: &'r mut Root) -> Self {
-        Self {
-            root,
-        }
+        Self { root }
     }
 }
 
 impl<'a> ReadLineContext for RootCtx<'a> {
-    fn command(&self, cmd: &str, args: &[&str]) -> NextContext {
+    fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext {
         match (cmd, args) {
             ("host", &[host_url]) => {
                 let host = self.root.host_search(host_url);
                 match host {
                     Ok(idx) => NextContext::New(Box::new(HostCtx::new(idx))),
                     _ => NextContext::Unchanged,
-                        //Action::Failed("Host not found. If you want to add it, specify a token.".into())),
+                    //Action::Failed("Host not found. If you want to add it, specify a token.".into())),
                 }
             }
             ("host", &[host_url, token]) => {
                 match self.root.add_host_by_url(host_url, token) {
                     Ok((_, prev_token)) => match prev_token {
                         Some(token) => NextContext::Unchanged,
-                            //Action::SideEffect(format!("Replaced {}'s token {}.", host_url, token).into())),
+                        //Action::SideEffect(format!("Replaced {}'s token {}.", host_url, token).into())),
                         None => NextContext::Unchanged,
-                            //Action::SideEffect(format!("Host added: {}", host_url).into())),
+                        //Action::SideEffect(format!("Host added: {}", host_url).into())),
                     },
                     Err(e) => NextContext::Unchanged,
-                        //Action::Failed(format!("{:?}", e).into())),
+                    //Action::Failed(format!("{:?}", e).into())),
                 }
-            },
+            }
             ("host", _) => NextContext::Unchanged,
-                //Action::Usage("usage: host <3scale-system-host> [<token>]".into())),
+            //Action::Usage("usage: host <3scale-system-host> [<token>]".into())),
             (_, _) => NextContext::Parent,
-                //Action::NotFound),
+            //Action::NotFound),
         }
     }
 
