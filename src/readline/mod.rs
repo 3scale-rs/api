@@ -50,24 +50,18 @@ pub fn repl(history: Option<&str>) {
 
     let mut root = super::actions::root::Root::new();
     let rootctx = super::actions::root::RootCtx::new(&mut root);
-    //let mut ctx: &mut dyn ReadLineContext = &mut rootctx;
     let mut ctx: Box<dyn ReadLineContext> = Box::new(rootctx);
 
-    //ctx.command("dx", &[]);
-
     loop {
-        let mut prompt = ctx.prompt().to_string();
-        prompt.push_str(">>");
+        let prompt = ctx.prompt().to_string();
+        //prompt.push_str(">>");
         let readline = rl.readline(prompt.as_str());
         let next = match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if let Some(words) = parse_line(line.as_str()) {
-                    //let cc = handle_line(ctx, words[0], &words[1..]);
-
                     let (command, args) = words.split_first().unwrap();
-                    let nc = ctx.command(command, args);
-                    match nc {
+                    match ctx.command(command, args) {
                         NextContext::New(rlc) => Some(rlc),
                         _ => None,
                     }
@@ -87,7 +81,7 @@ pub fn repl(history: Option<&str>) {
                 break;
             }
         };
-        ctx = next.map_or(ctx, |b| b);
+        ctx = next.unwrap_or(ctx);
     }
 
     if let Some(file) = history {
