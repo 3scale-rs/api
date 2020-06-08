@@ -76,27 +76,19 @@ impl<'a> ReadLineContext for RootCtx<'a> {
             ("host", &[host_url]) => {
                 let host = self.root.host_search(host_url);
                 match host {
-                    Ok(idx) => NextContext::New(Box::new(HostCtx::new(idx))),
+                    Ok(idx) => NextContext::Push(Box::new(HostCtx::new(idx))),
                     _ => NextContext::Unchanged,
-                    //Action::Failed("Host not found. If you want to add it, specify a token.".into())),
                 }
             }
-            ("host", &[host_url, token]) => {
-                match self.root.add_host_by_url(host_url, token) {
-                    Ok((_, prev_token)) => match prev_token {
-                        Some(token) => NextContext::Unchanged,
-                        //Action::SideEffect(format!("Replaced {}'s token {}.", host_url, token).into())),
-                        None => NextContext::Unchanged,
-                        //Action::SideEffect(format!("Host added: {}", host_url).into())),
-                    },
-                    Err(e) => NextContext::Unchanged,
-                    //Action::Failed(format!("{:?}", e).into())),
-                }
-            }
+            ("host", &[host_url, token]) => match self.root.add_host_by_url(host_url, token) {
+                Ok((_, prev_token)) => match prev_token {
+                    Some(token) => NextContext::Unchanged,
+                    None => NextContext::Unchanged,
+                },
+                Err(e) => NextContext::Unchanged,
+            },
             ("host", _) => NextContext::Unchanged,
-            //Action::Usage("usage: host <3scale-system-host> [<token>]".into())),
-            (_, _) => NextContext::Parent,
-            //Action::NotFound),
+            (_, _) => NextContext::Pop(None),
         }
     }
 

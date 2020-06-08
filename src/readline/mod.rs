@@ -8,13 +8,12 @@ use super::actions::Context;
 
 pub enum NextContext {
     Unchanged,
-    Parent,
-    New(Box<dyn ReadLineContext>),
+    Pop(Option<Box<dyn ReadLineContext>>),
+    Push(Box<dyn ReadLineContext>),
 }
 
 pub trait ReadLineContext {
     fn prompt(&self) -> &str;
-    //fn command(&self, cmd: &str, args: &[&str]) -> Option<Box<dyn ReadLineContext>>;
     fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext;
 }
 
@@ -25,18 +24,6 @@ fn parse_line(line: &str) -> Option<Vec<&str>> {
     }
 
     Some(words)
-}
-
-fn handle_line<'a, 'b>(
-    ctx: &'a mut dyn ReadLineContext,
-    command: &str,
-    args: &[&str],
-) -> Option<&'b mut dyn ReadLineContext> {
-    let ca = ctx.command(command, args);
-    match ca {
-        NextContext::New(b) => Some(Box::leak(b)),
-        _ => None,
-    }
 }
 
 pub fn repl(history: Option<&str>) {
@@ -52,21 +39,20 @@ pub fn repl(history: Option<&str>) {
     let rootctx = super::actions::root::RootCtx::new(&mut root);
     let mut ctx: Box<dyn ReadLineContext> = Box::new(rootctx);
 
+    let mut stack: Vec<Box<dyn ReadLineContext>> = vec![];
+
     loop {
         let prompt = ctx.prompt().to_string();
         //prompt.push_str(">>");
         let readline = rl.readline(prompt.as_str());
-        let next = match readline {
+        let next_context = match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if let Some(words) = parse_line(line.as_str()) {
                     let (command, args) = words.split_first().unwrap();
-                    match ctx.command(command, args) {
-                        NextContext::New(rlc) => Some(rlc),
-                        _ => None,
-                    }
+                    ctx.command(command, args)
                 } else {
-                    None
+                    NextContext::Unchanged
                 }
             }
             Err(ReadlineError::Interrupted) => {
@@ -81,7 +67,18 @@ pub fn repl(history: Option<&str>) {
                 break;
             }
         };
-        ctx = next.unwrap_or(ctx);
+        ctx = match next_context {
+            NextContext::Push(rlc) => {
+                stack.push(ctx);
+                rlc
+            }
+            NextContext::Pop(Some(rlc)) => {
+                let _ = stack.pop();
+                rlc
+            }
+            NextContext::Pop(None) => stack.pop().unwrap_or(ctx),
+            _ => ctx,
+        };
     }
 
     if let Some(file) = history {

@@ -94,6 +94,6 @@ impl ReadLineContext for HostCtx {
     }
 
     fn command(&mut self, cmd: &str, args: &[&str]) -> NextContext {
-        NextContext::Parent
+        NextContext::Pop(None)
     }
 }
